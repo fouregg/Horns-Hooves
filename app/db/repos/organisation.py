@@ -3,7 +3,7 @@ from typing import Sequence
 from sqlalchemy.orm import selectinload
 
 from app.api.dto.organisation.request import OrganisationFilters
-from app.db.models import Organisation, Activity
+from app.db.models import Organisation, Activity, Building
 from app.db.repos.base.base import BaseRepo
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,16 +26,32 @@ class OrganisationRepo(BaseRepo):
     async def get_organisations(self, filters: OrganisationFilters) -> Sequence[Organisation]:
         conditions = []
 
+        stmt = select(Organisation)
+
         if filters.name:
             conditions.append(Organisation.name.ilike(f"%{filters.name}%"))
-
-        stmt = select(Organisation).where(*conditions)
 
         if filters.activity_name:
             stmt =stmt.join(Organisation.activities).where(
                 Activity.name.ilike(f"%{filters.activity_name}%")
             )
             stmt = stmt.distinct()
+
+        if all([filters.point_latitude, filters.point_longitude,
+                filters.limit_latitude, filters.limit_longitude]):
+            stmt = stmt.join(Organisation.building)
+
+            min_lat = filters.point_latitude - filters.limit_latitude
+            max_lat = filters.point_latitude + filters.limit_latitude
+            min_lon = filters.point_longitude - filters.limit_longitude
+            max_lon = filters.point_longitude + filters.limit_longitude
+
+            conditions.extend([
+                Building.latitude.between(min_lat, max_lat),
+                Building.longitude.between(min_lon, max_lon)
+            ])
+
+        stmt = stmt.where(*conditions)
 
         query = await self.session.execute(stmt)
         return query.scalars().all()
