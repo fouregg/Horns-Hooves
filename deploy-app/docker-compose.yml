@@ -1,0 +1,51 @@
+
+services:
+  app-postgres:
+    container_name: postgres-app
+    image: postgres:17
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_PORT: 5432
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data-app:/var/lib/postgresql/data
+    networks:
+      app-network:
+
+  app-backend:
+    container_name: app-backend
+    labels:
+      logging: "promtail"
+      logging_jobname: "containerlogs"
+    build:
+      context: ../
+      dockerfile: ./deploy-app/Dockerfile
+    entrypoint: ["/bin/sh","-c"]
+    command:
+      - |
+        service cron start
+        alembic upgrade head && gunicorn \
+          --config deploy-app/gunicorn_config.py \
+          --worker-class deploy-app.gunicorn_config.CustomUvicornWorker app.main:get_app \
+          --bind 0.0.0.0:8000
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "8006:8000"
+    volumes:
+      - ../:/usr/app/
+    networks:
+      app-network:
+
+volumes:
+  postgres-data-app:
+
+networks:
+  app-network:
+    external: true
+
+
