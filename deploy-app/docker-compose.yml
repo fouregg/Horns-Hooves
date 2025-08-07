@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_PORT: 5433
     ports:
-      - "5432:5433"
+      - "5433:5432"
     volumes:
       - postgres-data-app:/var/lib/postgresql/data
     networks:
